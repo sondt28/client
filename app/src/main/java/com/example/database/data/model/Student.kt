@@ -11,5 +11,5 @@ data class Student(
     val lastName: String,
     val phone: String,
     val studentID: Long,
-    val subjects: List<Subject>
+    var subjects: List<Subject>
 ) : Parcelable
