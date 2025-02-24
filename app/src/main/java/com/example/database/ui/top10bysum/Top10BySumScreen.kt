@@ -71,19 +71,19 @@ fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, d
         Spacer(modifier = Modifier.height(16.dp))
 
         DropdownSelector(
-            label = "Select City",
-            options = cities,
-            selectedOption = selectedCity,
-            onOptionSelected = { selectedCity = it }
+            label = "Select Sum Option",
+            options = sumOptions,
+            selectedOption = selectedSumOption,
+            onOptionSelected = { selectedSumOption = it }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         DropdownSelector(
-            label = "Select Sum Option",
-            options = sumOptions,
-            selectedOption = selectedSumOption,
-            onOptionSelected = { selectedSumOption = it }
+            label = "Select City",
+            options = cities,
+            selectedOption = selectedCity,
+            onOptionSelected = { selectedCity = it }
         )
 
         Spacer(modifier = Modifier.height(16.dp))

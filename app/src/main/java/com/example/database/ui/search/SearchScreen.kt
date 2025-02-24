@@ -94,12 +94,11 @@ fun SearchScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Unit, dbSe
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Nút Search
         Button(
             onClick = {
                 isLoading = true
                 CoroutineScope(Dispatchers.IO).launch {
-                    val result = null
+                    val result = dbService.getStudentByFirstNameAndCity(firstName, selectedCity)
                     withContext(Dispatchers.Main) {
                         if (result != null) {
                             student = result
@@ -137,7 +136,6 @@ fun SearchScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Unit, dbSe
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Subjects:", fontWeight = FontWeight.Bold)
 
-                    // Hiển thị bảng điểm
                     LazyColumn {
                         items(s.subjects) { subject ->
                             Text("${subject.name}: ${subject.score}")
