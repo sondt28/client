@@ -1,12 +1,9 @@
-// IStudentAPI.aidl
-package com.example.database;
+package com.example.client;
 
 import com.example.common.model.Student;
 import com.example.common.model.Subject;
 
-interface IStudentAPI {
-    boolean isDBInitialized();
-    boolean initDB();
+interface IClientDataTransfer {
     List<Student> getStudentsWithPaging(int limit, int offset);
     List<Student> getTop10StudentBySubject(String subject);
     List<Student> getTop10StudentSumAByCity(String city);
