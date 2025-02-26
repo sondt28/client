@@ -1,4 +1,4 @@
-package com.example.client
+package com.example.client.ui
 
 sealed interface ClientDestination {
     val route: String
