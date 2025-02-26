@@ -16,41 +16,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.database.IStudentAPI
-import com.example.common.model.Student
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.client.service.LocalService
+import com.example.client.ui.components.DropdownSelector
 import com.example.client.ui.top10studentsubject.StudentCard
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
-fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, dbService: IStudentAPI) {
-    val cities = listOf(
-        "Can Tho", "Da Lat", "Da Nang", "HCM", "Hai Phong",
-        "Hanoi", "Hue", "Nha Trang", "Quang Ninh", "Vung Tau"
-    )
-    val sumOptions = listOf("SumA", "SumB")
-
-    var selectedCity by remember { mutableStateOf(cities.first()) }
-    var selectedSumOption by remember { mutableStateOf(sumOptions.first()) }
-    var students by remember { mutableStateOf<List<Student>?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
+fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, localService: LocalService) {
+    val uiState = localService.top10BySumUiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -72,18 +54,18 @@ fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, d
 
         DropdownSelector(
             label = "Select Sum Option",
-            options = sumOptions,
-            selectedOption = selectedSumOption,
-            onOptionSelected = { selectedSumOption = it }
+            options = uiState.value.sumOptions,
+            selectedOption = uiState.value.sumOptionSelected,
+            onOptionSelected = { localService.updateSelectedSumOption(it) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         DropdownSelector(
             label = "Select City",
-            options = cities,
-            selectedOption = selectedCity,
-            onOptionSelected = { selectedCity = it }
+            options = uiState.value.cities,
+            selectedOption = uiState.value.selectedCity,
+            onOptionSelected = { localService.updateSelectedCity(it) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -91,27 +73,15 @@ fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, d
         Button(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             onClick = {
-                isLoading = true
-                students = null
-                CoroutineScope(Dispatchers.IO).launch {
-                    val result = if (selectedSumOption == sumOptions[0]) {
-                        dbService.getTop10StudentSumAByCity(selectedCity)
-                    } else {
-                        dbService.getTop10StudentSumBByCity(selectedCity)
-                    }
-                    withContext(Dispatchers.Main) {
-                        students = result
-                        isLoading = false
-                    }
-                }
+                localService.getTop10BySum(uiState.value.sumOptionSelected, uiState.value.selectedCity)
             }
         ) {
-            Text("Get Top 10 for $selectedCity ($selectedSumOption)")
+            Text("Get Top 10 for ${uiState.value.sumOptionSelected} ${uiState.value.selectedCity}")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (isLoading) {
+        if (uiState.value.isLoading) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -120,7 +90,7 @@ fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, d
             }
         }
 
-        students?.let { list ->
+        uiState.value.students?.let { list ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -133,27 +103,3 @@ fun Top10BySumScreen(modifier: Modifier = Modifier, onBackPressed: () -> Unit, d
     }
 }
 
-@Composable
-fun DropdownSelector(label: String, options: List<String>, selectedOption: String, onOptionSelected: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Column {
-        Text(text = label, fontWeight = FontWeight.Bold)
-        Box {
-            Button(onClick = { expanded = true }) {
-                Text(selectedOption)
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onOptionSelected(option)
-                            expanded = false
-                        }
-                    )
-                }
-            }
-        }
-    }
-}

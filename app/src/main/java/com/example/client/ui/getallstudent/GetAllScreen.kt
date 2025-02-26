@@ -18,8 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.client.service.LocalService
 import com.example.client.ui.ClientViewModel
 import com.example.database.IStudentAPI
 import com.example.common.model.Student
@@ -45,9 +49,11 @@ import kotlinx.coroutines.withContext
 @Composable
 fun GetAllScreen(
     modifier: Modifier = Modifier,
-    shareViewModel: ClientViewModel,
+    localService: LocalService,
     onBackPressed: () -> Unit
 ) {
+    val uiState = localService.getAllUiState.collectAsStateWithLifecycle()
+
 //    var students by remember { mutableStateOf<List<Student>>(emptyList()) }
 //    var pageNumber by remember { mutableStateOf(0) }
 //    var isLoading by remember { mutableStateOf(false) }
@@ -55,8 +61,8 @@ fun GetAllScreen(
 //
 //    val expandedStates = remember { mutableStateMapOf<Long, Boolean>() }
 //    val loadingStates = remember { mutableStateMapOf<Long, Boolean>() }
-//
-//    val listState = rememberLazyListState()
+
+    val listState = rememberLazyListState()
 //
 //    val isAtBottom by remember {
 //        derivedStateOf {
@@ -64,55 +70,55 @@ fun GetAllScreen(
 //            listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == lastItemIndex
 //        }
 //    }
-//
-//    Column(
-//        modifier = Modifier
-//            .fillMaxSize()
-//            .padding(16.dp)
-//    ) {
-//
-//        Row(
-//            modifier = Modifier.fillMaxWidth(),
-//            verticalAlignment = Alignment.CenterVertically
-//        ) {
-//            IconButton(onClick = onBackPressed) {
-//                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
-//            }
-//            Spacer(modifier = Modifier.width(8.dp))
-//            Text(text = "Get All Student", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-//        }
-//
-//        Spacer(modifier = Modifier.height(16.dp))
-//
-//        Button(
-//            modifier = Modifier.align(Alignment.CenterHorizontally),
-//            onClick = {
-//                isLoadingTop = true
-//                pageNumber = 0
-//                CoroutineScope(Dispatchers.IO).launch {
-//                    val result = dbService.getStudentsWithPaging(10, pageNumber)
-//                    withContext(Dispatchers.Main) {
-//                        students = result
-//                        isLoadingTop = false
-//                    }
-//                }
-//            }
-//        ) {
-//            Text("Get All")
-//        }
-//
-//        Spacer(modifier = Modifier.height(16.dp))
-//
-//        // **Loading Indicator khi bấm "Get All"**
-//        if (isLoadingTop) {
-//            Box(
-//                modifier = Modifier.fillMaxWidth(),
-//                contentAlignment = Alignment.Center
-//            ) {
-//                CircularProgressIndicator()
-//            }
-//        }
-//
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBackPressed) {
+                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "Get All Student", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            onClick = {
+                localService.getStudentsWithPaging(10, 0)
+            }
+        ) {
+            Text("Get All")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (uiState.value.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
+
+        uiState.value.students?.let { students ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(students) { student ->
+                    StudentItem(student)
+                }
+            }
+        }
+
 //        LazyColumn(
 //            state = listState,
 //            modifier = Modifier.weight(1f),
@@ -207,4 +213,22 @@ fun GetAllScreen(
 //            }
 //        }
 //    }
+    }
+}
+
+@Composable
+fun StudentItem(student: Student) {
+    Surface {
+        Row(modifier = Modifier.padding(24.dp)) {
+            Text(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(24.dp), text = student.firstName + " " + student.lastName
+            )
+            ElevatedButton(onClick = {}) {
+                Text(text = "Show More")
+            }
+        }
+    }
 }

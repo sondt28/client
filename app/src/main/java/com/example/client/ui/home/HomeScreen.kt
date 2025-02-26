@@ -1,18 +1,16 @@
 package com.example.client.ui.home
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.client.service.LocalService
 import com.example.client.ui.ClientDestination
-import com.example.client.ui.ClientViewModel
 import com.example.client.ui.GetAllScreen
 import com.example.client.ui.SearchScreen
 import com.example.client.ui.Top10BySubjectScreen
@@ -22,10 +20,10 @@ import com.example.client.ui.components.LoadingScreen
 
 @Composable
 fun HomeScreen(
-    shareViewModel: ClientViewModel,
+    localService: LocalService,
     onDestinationClick: (ClientDestination) -> Unit
 ) {
-    val uiState = shareViewModel.homeUiState.collectAsStateWithLifecycle()
+    val uiState = localService.homeUiState.collectAsStateWithLifecycle()
 
     if (uiState.value.isLoading) {
         LoadingScreen("Initializing database...")

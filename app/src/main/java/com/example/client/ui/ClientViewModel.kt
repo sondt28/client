@@ -9,6 +9,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.client.service.HomeUiState
 import com.example.database.IStudentAPI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,4 +66,3 @@ class ClientViewModel(private val application: Application) : AndroidViewModel(a
     }
 }
 
-data class HomeUiState(val isLoading: Boolean = false)

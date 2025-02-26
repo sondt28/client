@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.client.service.LocalService
 import com.example.database.IStudentAPI
 import com.example.common.model.Student
 import kotlinx.coroutines.CoroutineScope
@@ -45,30 +47,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun Top10BySubjectScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Unit, dbService: IStudentAPI) {
-    val subjects = listOf(
-        "Math",
-        "Physics",
-        "Chemistry",
-        "Biology",
-        "English",
-        "Literature",
-        "Geography",
-        "History",
-        "Physical Education",
-        "Music"
-    )
-
-    var selectedSubject by remember { mutableStateOf(subjects.first()) }
-    var students by remember { mutableStateOf<List<Student>?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
+fun Top10BySubjectScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Unit, localService: LocalService) {
+    val uiState = localService.top10BySubjectUiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // **Nút Back**
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -82,37 +68,24 @@ fun Top10BySubjectScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Un
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // **Chọn môn học bằng Assist Chips**
         SubjectAssistChipGroup(
-            subjects = subjects,
-            selectedSubject = selectedSubject,
-            onSubjectSelected = { selectedSubject = it }
+            subjects = uiState.value.subjects,
+            selectedSubject = uiState.value.subjectSelected,
+            onSubjectSelected = { localService.updateSelectedSubject(it) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // **Nút "Get Top 10"**
         Button(
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            onClick = {
-                isLoading = true
-                students = null
-                CoroutineScope(Dispatchers.IO).launch {
-                    val result = dbService.getTop10StudentBySubject(selectedSubject)
-                    withContext(Dispatchers.Main) {
-                        students = result
-                        isLoading = false
-                    }
-                }
-            }
+            onClick = { localService.getTop10BySubject(uiState.value.subjectSelected) }
         ) {
-            Text("Get Top 10 for $selectedSubject")
+            Text("Get Top 10 Student for ${uiState.value.subjectSelected}")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // **Loading Indicator**
-        if (isLoading) {
+        if (uiState.value.isLoading) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -121,8 +94,7 @@ fun Top10BySubjectScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Un
             }
         }
 
-        // **Hiển thị danh sách sinh viên**
-        students?.let { list ->
+        uiState.value.students?.let { list ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
