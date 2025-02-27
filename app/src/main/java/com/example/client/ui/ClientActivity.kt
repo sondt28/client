@@ -63,14 +63,11 @@ class ClientActivity : ComponentActivity() {
         Intent(this, LocalService::class.java).also { intent ->
             bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }
-        Log.d("SonLN", "bindService: ")
-
     }
 
     private fun unbindService() {
         unbindService(connection)
         mBound = false
-        Log.d("SonLN", "unbindService: $mBound")
     }
 }
 

@@ -42,6 +42,8 @@ android {
 }
 
 dependencies {
+    implementation(platform("androidx.compose:compose-bom:2025.02.00"))
+    implementation("androidx.paging:paging-compose:3.3.0-alpha05")
     implementation (libs.androidx.paging.runtime)
     implementation (libs.androidx.paging.compose)
     implementation (libs.androidx.navigation.compose)

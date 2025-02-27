@@ -6,10 +6,16 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Binder
 import android.os.IBinder
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import com.example.client.ui.getallstudent.ListState
+import com.example.client.ui.getallstudent.StudentPagingSource
 import com.example.common.model.Student
 import com.example.database.IStudentAPI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -44,7 +50,8 @@ class LocalService : Service() {
     )
     val top10BySumUiState = _top10BySumUiState.asStateFlow()
 
-    private val _searchUiState = MutableStateFlow(SearchUiState(cities = cities, selectedCity = cities.first()))
+    private val _searchUiState =
+        MutableStateFlow(SearchUiState(cities = cities, selectedCity = cities.first()))
     val searchUiState = _searchUiState.asStateFlow()
 
     private var databaseService: IStudentAPI? = null
@@ -73,6 +80,11 @@ class LocalService : Service() {
         return super.onUnbind(intent)
     }
 
+    override fun onDestroy() {
+        coroutineScope.cancel()
+        super.onDestroy()
+    }
+
     private fun initDBIfNeed() {
         coroutineScope.launch {
             _homeUiState.update { it.copy(isLoading = true) }
@@ -87,14 +99,12 @@ class LocalService : Service() {
         }
     }
 
-    fun getStudentsWithPaging(limit: Int, offset: Int) {
-        coroutineScope.launch {
-            _getAllUiState.update { it.copy(isLoading = true) }
-            val students = withContext(Dispatchers.IO) {
-                databaseService?.getStudentsWithPaging(limit, offset)
-            }
-            _getAllUiState.update { it.copy(isLoading = false, students = students, offset = it.limit + offset) }
-        }
+    fun getStudentPager() {
+        val pager = Pager(
+            config = PagingConfig(pageSize = 10),
+            pagingSourceFactory = { StudentPagingSource(databaseService!!) }
+        )
+        _getAllUiState.update { it.copy(pager = pager) }
     }
 
     fun getStudentByFirstNameAndCity(firstName: String, city: String) {
@@ -121,9 +131,63 @@ class LocalService : Service() {
         }
     }
 
+
+    fun getStudentsWithPaging(limit: Int, offset: Int) {
+        coroutineScope.launch {
+            _getAllUiState.update { it.copy(isLoadingGetStudents = true) }
+
+            val students = withContext(Dispatchers.IO) {
+                databaseService?.getStudentsWithPaging(limit, offset)
+            }
+
+            _getAllUiState.update {
+                it.copy(
+                    isLoadingGetStudents = false,
+                    students = students,
+                    offset = it.offset + 10,
+                )
+            }
+        }
+    }
+
+    fun getMoreStudentsPage() {
+        coroutineScope.launch {
+            _getAllUiState.update { it.copy(isLoadingMorePage = true) }
+
+            val students = withContext(Dispatchers.IO) {
+                databaseService?.getStudentsWithPaging(
+                    _getAllUiState.value.limit,
+                    _getAllUiState.value.offset
+                )
+            }
+
+            _getAllUiState.update {
+                it.copy(
+                    isLoadingMorePage = false,
+                    students = students,
+                    offset = it.offset + 10,
+                )
+            }
+        }
+    }
+
+    fun getSubjectByStudentId(studentId: Long) {
+        coroutineScope.launch {
+            val subjects = withContext(Dispatchers.IO) {
+                databaseService?.getSubjectByStudentId(studentId)
+            }
+        }
+    }
+
     fun getTop10BySum(sumOption: String, city: String) {
         coroutineScope.launch {
-            _top10BySumUiState.update { it.copy(isLoading = true, sumOptionSelected = sumOption, selectedCity = city) }
+            _top10BySumUiState.update {
+                it.copy(
+                    isLoading = true,
+                    sumOptionSelected = sumOption,
+                    selectedCity = city
+                )
+            }
 
             val students = withContext(Dispatchers.IO) {
                 if (sumOption == "SumA") {
@@ -184,14 +248,19 @@ class LocalService : Service() {
 
     companion object {
         private const val INTENT_DATABASE_SERVICE = "istudentapi"
+
     }
 }
 
 data class GetAllUiState(
-    val isLoading: Boolean = false,
+    val isLoadingGetStudents: Boolean = false,
+    val isLoadingMorePage: Boolean = false,
     val students: List<Student>? = null,
+    val canPaginate: Boolean = false,
     val offset: Int = 0,
-    val limit: Int = 10
+    val limit: Int = 10,
+    val listStudentState: ListState = ListState.IDLE,
+    val pager: Pager<Int, Student>? = null
 )
 
 data class SearchUiState(

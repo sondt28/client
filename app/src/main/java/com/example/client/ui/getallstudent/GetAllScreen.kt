@@ -21,30 +21,31 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.paging.LoadState
+import androidx.paging.Pager
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import com.example.client.service.LocalService
-import com.example.client.ui.ClientViewModel
-import com.example.database.IStudentAPI
 import com.example.common.model.Student
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
 fun GetAllScreen(
@@ -53,23 +54,8 @@ fun GetAllScreen(
     onBackPressed: () -> Unit
 ) {
     val uiState = localService.getAllUiState.collectAsStateWithLifecycle()
-
-//    var students by remember { mutableStateOf<List<Student>>(emptyList()) }
-//    var pageNumber by remember { mutableStateOf(0) }
-//    var isLoading by remember { mutableStateOf(false) }
-//    var isLoadingTop by remember { mutableStateOf(false) }
-//
-//    val expandedStates = remember { mutableStateMapOf<Long, Boolean>() }
-//    val loadingStates = remember { mutableStateMapOf<Long, Boolean>() }
-
     val listState = rememberLazyListState()
-//
-//    val isAtBottom by remember {
-//        derivedStateOf {
-//            val lastItemIndex = students.size - 1
-//            listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == lastItemIndex
-//        }
-//    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,14 +77,14 @@ fun GetAllScreen(
         Button(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             onClick = {
-                localService.getStudentsWithPaging(10, 0)
+                localService.getStudentPager()
             }
         ) {
             Text("Get All")
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (uiState.value.isLoading) {
+        if (uiState.value.isLoadingGetStudents) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -107,127 +93,117 @@ fun GetAllScreen(
             }
         }
 
-        uiState.value.students?.let { students ->
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(students) { student ->
-                    StudentItem(student)
+//        uiState.value.students?.let { students ->
+//            LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+//                items(items = students, key = { it.studentID }) { student ->
+//                    StudentItem(student)
+//                }
+//            }
+//        }
+//
+//        LaunchedEffect(listState) {
+//            snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull() }
+//                .distinctUntilChanged()
+//                .collectLatest { lastItem ->
+//                    if (lastItem != null && lastItem.index == uiState.value.students?.size?.minus(1)) {
+//                        localService.getMoreStudentsPage()
+//                    }
+//                }
+//        }
+
+//        uiState.value.students?.let { students ->
+//            LazyColumn(
+//                state = listState,
+//                modifier = Modifier.weight(1f),
+//                verticalArrangement = Arrangement.spacedBy(8.dp)
+//            ) {
+//                items(students) { student ->
+//                    StudentItem(
+//                        student = student)
+//                }
+//            }
+//        }
+
+//        if (uiState.value.isLoadingMorePage) {
+//            Box(
+//                modifier = Modifier.fillMaxWidth(),
+//                contentAlignment = Alignment.Center
+//            ) {
+//                CircularProgressIndicator()
+//            }
+//        }
+        uiState.value.pager?.let {
+            StudentList(pager = it)
+        }
+    }
+}
+
+@Composable
+fun StudentList(modifier: Modifier = Modifier, pager: Pager<Int, Student>) {
+    val lazyPagingItems = pager.flow.collectAsLazyPagingItems()
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(
+            lazyPagingItems.itemCount,
+            key = lazyPagingItems.itemKey { it.studentID }
+        ) { index ->
+            val message = lazyPagingItems[index]
+            if (message != null) {
+                StudentItem(message)
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
             }
         }
+    }
 
-//        LazyColumn(
-//            state = listState,
-//            modifier = Modifier.weight(1f),
-//            verticalArrangement = Arrangement.spacedBy(8.dp)
-//        ) {
-//            items(students) { student ->
-//                Column(
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .padding(8.dp)
-//                ) {
-//                    Row(
-//                        modifier = Modifier
-//                            .fillMaxWidth(),
-//                        horizontalArrangement = Arrangement.SpaceBetween,
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        Text(
-//                            text = "${student.studentID}. ${student.firstName} ${student.lastName}",
-//                            fontSize = 16.sp
-//                        )
-//                        if (student.subjects.isEmpty()) {
-//                            Button(
-//                                onClick = {
-//                                    loadingStates[student.studentID] = true
-//                                    CoroutineScope(Dispatchers.IO).launch {
-//                                        val fullStudent =
-//                                            dbService.getSubjectByStudentId(student.studentID)
-//                                        withContext(Dispatchers.Main) {
-//                                            student.subjects = fullStudent
-//                                            expandedStates[student.studentID] = true
-//                                            loadingStates[student.studentID] = false
-//                                        }
-//                                    }
-//                                }
-//                            ) {
-//                                if (loadingStates[student.studentID] == true) {
-//                                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
-//                                } else {
-//                                    Text("Show More")
-//                                }
-//                            }
-//                        }
-//                    }
-//
-//                    if (expandedStates[student.studentID] == true) {
-//                        Column(
-//                            modifier = Modifier
-//                                .fillMaxWidth()
-//                                .padding(top = 8.dp)
-//                        ) {
-//                            Text("${student.subjects[0].name}: ${student.subjects[0].score}")
-//                            Text("${student.subjects[1].name}: ${student.subjects[1].score}")
-//                            Text("${student.subjects[2].name}: ${student.subjects[2].score}")
-//                            Text("${student.subjects[3].name}: ${student.subjects[3].score}")
-//                            Text("${student.subjects[4].name}: ${student.subjects[4].score}")
-//                            Text("${student.subjects[5].name}: ${student.subjects[5].score}")
-//                            Text("${student.subjects[6].name}: ${student.subjects[6].score}")
-//                            Text("${student.subjects[7].name}: ${student.subjects[7].score}")
-//                            Text("${student.subjects[8].name}: ${student.subjects[8].score}")
-//                            Text("${student.subjects[9].name}: ${student.subjects[9].score}")
-//                        }
-//                    }
-//                }
-//            }
-//
-//            if (isLoading) {
-//                item {
-//                    Box(
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .padding(16.dp),
-//                        contentAlignment = Alignment.Center
-//                    ) {
-//                        CircularProgressIndicator()
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
-//    LaunchedEffect(isAtBottom) {
-//        if (isAtBottom && !isLoading) {
-//            isLoading = true
-//            pageNumber += 10
-//            CoroutineScope(Dispatchers.IO).launch {
-//                val newStudents = dbService.getStudentsWithPaging(10, pageNumber)
-//                withContext(Dispatchers.Main) {
-//                    students = students + newStudents
-//                    isLoading = false
-//                }
-//            }
-//        }
-//    }
+    if (lazyPagingItems.loadState.refresh is LoadState.Loading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
     }
 }
 
 @Composable
 fun StudentItem(student: Student) {
-    Surface {
-        Row(modifier = Modifier.padding(24.dp)) {
+    var expanded by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    val paddingExpand = if (expanded) 96.dp else 24.dp
+
+    Surface(color = MaterialTheme.colorScheme.primary) {
+        Row(
+            modifier = Modifier.padding(
+                top = 24.dp,
+                bottom = paddingExpand,
+                start = 24.dp,
+                end = 24.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(24.dp), text = student.firstName + " " + student.lastName
+                    .padding(24.dp),
+                text = "${student.studentID}. ${student.firstName} ${student.lastName}"
             )
             ElevatedButton(onClick = {}) {
-                Text(text = "Show More")
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Show More")
+                }
             }
         }
     }
