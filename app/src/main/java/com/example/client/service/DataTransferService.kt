@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.example.client.IClientDataTransfer
+import com.example.common.model.StudentSimple
 import com.example.common.model.Student
 import com.example.common.model.Subject
 
@@ -26,9 +27,9 @@ class DataTransferService : Service() {
     }
 
     private val binder = object : IClientDataTransfer.Stub() {
-        override fun getStudentsWithPaging(limit: Int, offset: Int): MutableList<Student>? {
-            localService.getStudentsWithPaging(limit, offset)
-            return localService.getAllUiState.value.students?.toMutableList()
+        override fun getStudentsWithPaging(limit: Int, offset: Int): MutableList<StudentSimple>? {
+            localService
+            return mutableListOf()
         }
 
         override fun getTop10StudentBySubject(subject: String): MutableList<Student>? {

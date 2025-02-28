@@ -8,26 +8,39 @@ import android.os.Binder
 import android.os.IBinder
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
-import com.example.client.ui.getallstudent.ListState
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.map
 import com.example.client.ui.getallstudent.StudentPagingSource
+import com.example.common.model.StudentSimple
 import com.example.common.model.Student
+import com.example.common.model.Subject
 import com.example.database.IStudentAPI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class LocalService : Service() {
     private val binder = LocalBinder()
-    private val coroutineScope = CoroutineScope(Dispatchers.Main)
+
+    private val scopeMain = CoroutineScope(Dispatchers.Main)
+    private val scopeIO = CoroutineScope(Dispatchers.IO)
 
     private val _homeUiState = MutableStateFlow(HomeUiState())
     val homeUiState = _homeUiState.asStateFlow()
+
+    private val _studentPageFlow = MutableStateFlow<Flow<PagingData<StudentSimple>>?>(null)
+    val studentPagerFlow = _studentPageFlow.asStateFlow()
 
     private val _getAllUiState = MutableStateFlow(GetAllUiState())
     val getAllUiState = _getAllUiState.asStateFlow()
@@ -54,11 +67,14 @@ class LocalService : Service() {
         MutableStateFlow(SearchUiState(cities = cities, selectedCity = cities.first()))
     val searchUiState = _searchUiState.asStateFlow()
 
+    private lateinit var pagingSource: StudentPagingSource
+
     private var databaseService: IStudentAPI? = null
     private val databaseConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
             databaseService = IStudentAPI.Stub.asInterface(p1)
             initDBIfNeed()
+            pagingSource = StudentPagingSource(databaseService!!, 10)
         }
 
         override fun onServiceDisconnected(p0: ComponentName?) {
@@ -81,12 +97,26 @@ class LocalService : Service() {
     }
 
     override fun onDestroy() {
-        coroutineScope.cancel()
+        scopeMain.cancel()
         super.onDestroy()
     }
 
+    fun initStudentPager(pageSize: Int = 10) {
+        val pager = Pager(
+            config = PagingConfig(pageSize = pageSize),
+            pagingSourceFactory = {
+                pagingSource
+            }).flow.cachedIn(scopeIO)
+
+        _studentPageFlow.value = pager
+
+        _getAllUiState.update {
+            it.copy(isStartGetPaging = true, offset = pageSize + it.offset)
+        }
+    }
+
     private fun initDBIfNeed() {
-        coroutineScope.launch {
+        scopeMain.launch {
             _homeUiState.update { it.copy(isLoading = true) }
 
             withContext(Dispatchers.IO) {
@@ -99,16 +129,8 @@ class LocalService : Service() {
         }
     }
 
-    fun getStudentPager() {
-        val pager = Pager(
-            config = PagingConfig(pageSize = 10),
-            pagingSourceFactory = { StudentPagingSource(databaseService!!) }
-        )
-        _getAllUiState.update { it.copy(pager = pager) }
-    }
-
     fun getStudentByFirstNameAndCity(firstName: String, city: String) {
-        coroutineScope.launch {
+        scopeMain.launch {
             _searchUiState.update { it.copy(isLoading = true, firstName = firstName) }
 
             val student = withContext(Dispatchers.IO) {
@@ -120,7 +142,7 @@ class LocalService : Service() {
     }
 
     fun getTop10BySubject(subject: String) {
-        coroutineScope.launch {
+        scopeMain.launch {
             _top10BySubjectUiState.update { it.copy(isLoading = true, subjectSelected = subject) }
 
             val students = withContext(Dispatchers.IO) {
@@ -132,8 +154,8 @@ class LocalService : Service() {
     }
 
 
-    fun getStudentsWithPaging(limit: Int, offset: Int) {
-        coroutineScope.launch {
+    fun getStudentsWithPaging(limit: Int, offset: Int, isFrom: String = IS_FROM_LOCAL) {
+        scopeMain.launch {
             _getAllUiState.update { it.copy(isLoadingGetStudents = true) }
 
             val students = withContext(Dispatchers.IO) {
@@ -151,7 +173,7 @@ class LocalService : Service() {
     }
 
     fun getMoreStudentsPage() {
-        coroutineScope.launch {
+        scopeMain.launch {
             _getAllUiState.update { it.copy(isLoadingMorePage = true) }
 
             val students = withContext(Dispatchers.IO) {
@@ -172,15 +194,26 @@ class LocalService : Service() {
     }
 
     fun getSubjectByStudentId(studentId: Long) {
-        coroutineScope.launch {
+        scopeMain.launch {
+            _getAllUiState.update { state ->
+                state.copy(loadingItems = state.loadingItems + studentId)
+            }
+
             val subjects = withContext(Dispatchers.IO) {
                 databaseService?.getSubjectByStudentId(studentId)
+            }
+
+            _getAllUiState.update { state ->
+                state.copy(
+                    expandedItems = state.expandedItems + studentId,
+                    loadingItems = state.loadingItems - studentId
+                )
             }
         }
     }
 
     fun getTop10BySum(sumOption: String, city: String) {
-        coroutineScope.launch {
+        scopeMain.launch {
             _top10BySumUiState.update {
                 it.copy(
                     isLoading = true,
@@ -198,6 +231,37 @@ class LocalService : Service() {
             }
 
             _top10BySumUiState.update { it.copy(isLoading = false, students = students) }
+        }
+    }
+
+    fun toggleExpand(studentId: Long) {
+        if (studentId in _getAllUiState.value.expandedItems) {
+            _getAllUiState.update { state ->
+                state.copy(expandedItems = state.expandedItems - studentId)
+            }
+        } else {
+            _getAllUiState.update { state ->
+                state.copy(loadingItems = state.loadingItems + studentId)
+            }
+
+            scopeMain.launch {
+                try {
+                    val subjects = withContext(Dispatchers.IO) {
+                        databaseService?.getSubjectByStudentId(studentId)
+                    }
+                    _getAllUiState.update { state ->
+                        state.copy(
+                            expandedItems = state.expandedItems + studentId,
+                            subjects = state.subjects + (studentId to (subjects ?: emptyList())),
+                            loadingItems = state.loadingItems - studentId
+                        )
+                    }
+                } catch (e: Exception) {
+                    _getAllUiState.update { state ->
+                        state.copy(loadingItems = state.loadingItems - studentId)
+                    }
+                }
+            }
         }
     }
 
@@ -248,19 +312,22 @@ class LocalService : Service() {
 
     companion object {
         private const val INTENT_DATABASE_SERVICE = "istudentapi"
-
+        const val IS_FROM_LOCAL = "local"
+        const val IS_FROM_REMOTE = "remote"
     }
 }
 
 data class GetAllUiState(
     val isLoadingGetStudents: Boolean = false,
     val isLoadingMorePage: Boolean = false,
-    val students: List<Student>? = null,
+    val students: List<StudentSimple>? = null,
     val canPaginate: Boolean = false,
     val offset: Int = 0,
     val limit: Int = 10,
-    val listStudentState: ListState = ListState.IDLE,
-    val pager: Pager<Int, Student>? = null
+    val isStartGetPaging: Boolean = false,
+    val expandedItems: Set<Long> = emptySet(),
+    val loadingItems: Set<Long> = emptySet(),
+    val subjects: Map<Long, List<Subject>> = emptyMap()
 )
 
 data class SearchUiState(

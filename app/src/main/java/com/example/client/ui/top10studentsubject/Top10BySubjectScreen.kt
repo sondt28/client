@@ -27,10 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,12 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.client.service.LocalService
-import com.example.database.IStudentAPI
 import com.example.common.model.Student
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.example.common.model.StudentSimple
 
 @Composable
 fun Top10BySubjectScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Unit, localService: LocalService) {
@@ -99,8 +91,8 @@ fun Top10BySubjectScreen(modifier: Modifier = Modifier,  onBackPressed: () -> Un
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(list) { student ->
-                    StudentCard(student)
+                items(list) {
+                    StudentCard(it)
                 }
             }
         }
