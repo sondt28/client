@@ -17,25 +17,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.example.client.App.Companion.instance
 import com.example.client.service.LocalService
 import com.example.client.ui.components.LoadingScreen
 import com.example.client.ui.theme.ClientTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class ClientActivity : ComponentActivity() {
     private val mLocalService =  mutableStateOf<LocalService?>(null)
-    private var mBound: Boolean = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
             val binder = p1 as LocalService.LocalBinder
             mLocalService.value = binder.getService()
-            mBound = true
         }
 
         override fun onServiceDisconnected(p0: ComponentName?) {
-            mBound = false
+            mLocalService.value = null
         }
     }
 
@@ -51,7 +52,9 @@ class ClientActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        bindService()
+        lifecycleScope.launch {
+            bindService()
+        }
     }
 
     override fun onStop() {
@@ -67,7 +70,6 @@ class ClientActivity : ComponentActivity() {
 
     private fun unbindService() {
         unbindService(connection)
-        mBound = false
     }
 }
 
@@ -87,7 +89,7 @@ fun ClientApp(
                 )
             }
         }
-    } ?: LoadingScreen("Connecting to server...")
+    } ?: LoadingScreen("Connecting to database...")
 }
 
 @Preview(showBackground = true)

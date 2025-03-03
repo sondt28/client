@@ -9,6 +9,7 @@ import com.example.client.IClientDataTransfer
 import com.example.common.model.StudentSimple
 import com.example.common.model.Student
 import com.example.common.model.Subject
+import kotlinx.coroutines.runBlocking
 
 class DataTransferService : Service() {
     private lateinit var localService: LocalService
@@ -28,8 +29,18 @@ class DataTransferService : Service() {
 
     private val binder = object : IClientDataTransfer.Stub() {
         override fun getStudentsWithPaging(limit: Int, offset: Int): MutableList<StudentSimple>? {
-            localService
-            return mutableListOf()
+            localService.clearPaging()
+
+            localService.updateInitialPaginationState()
+
+            val first100Student = runBlocking {
+                val students = localService.fetchStudentWithPaging(limit, offset)
+                val canPaginate = students?.size == limit
+                localService.updateStudentList(students?.take(10) ?: emptyList(), canPaginate)
+                students
+            }
+
+            return first100Student?.toMutableList()
         }
 
         override fun getTop10StudentBySubject(subject: String): MutableList<Student>? {
@@ -37,16 +48,19 @@ class DataTransferService : Service() {
             return localService.top10BySubjectUiState.value.students?.toMutableList()
         }
 
-        override fun getTop10StudentSumAByCity(city: String?): MutableList<Student> {
-            return mutableListOf()
+        override fun getTop10StudentSumAByCity(city: String?): MutableList<Student>? {
+            localService.getTop10BySum("SumA", city ?: "")
+            return localService.top10BySumUiState.value.students?.toMutableList()
         }
 
-        override fun getTop10StudentSumBByCity(city: String?): MutableList<Student> {
-            return mutableListOf()
+        override fun getTop10StudentSumBByCity(city: String?): MutableList<Student>? {
+            localService.getTop10BySum("SumB", city ?: "")
+            return localService.top10BySumUiState.value.students?.toMutableList()
         }
 
-        override fun getStudentByFirstNameAndCity(firstName: String?, city: String?): Student {
-            return Student("", "", "", "", "", 1L, mutableListOf())
+        override fun getStudentByFirstNameAndCity(firstName: String?, city: String?): Student? {
+            localService.getStudentByFirstNameAndCity(firstName ?: "", city ?: "")
+            return localService.searchUiState.value.students
         }
 
         override fun getSubjectByStudentId(studentId: Long): MutableList<Subject> {

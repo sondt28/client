@@ -2,9 +2,11 @@ package com.example.client.ui.getallstudent
 
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -23,10 +27,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,8 +43,10 @@ import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.example.client.R
 import com.example.client.service.GetAllUiState
 import com.example.client.service.LocalService
+import com.example.client.ui.components.LoadingScreen
 import com.example.common.model.StudentSimple
 import com.example.common.model.Subject
 import kotlinx.coroutines.flow.Flow
@@ -48,7 +58,25 @@ fun GetAllScreen(
     onBackPressed: () -> Unit
 ) {
     val uiState = localService.getAllUiState.collectAsStateWithLifecycle()
-    val studentPagerFlow = localService.studentPagerFlow.collectAsState().value
+
+    val lazyColumnListState = rememberLazyListState()
+
+    val shouldPaginate = remember {
+        derivedStateOf {
+            val canPaginate = uiState.value.canPaginate
+            val lastVisibleIndex = lazyColumnListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 5
+            val totalItems = lazyColumnListState.layoutInfo.totalItemsCount
+
+            canPaginate && lastVisibleIndex >= totalItems - 3
+        }
+    }
+
+    LaunchedEffect(shouldPaginate.value) {
+        if (shouldPaginate.value && uiState.value.paginationState == PaginationState.REQUEST_INACTIVE) {
+            Log.d("SonLN", "load more")
+            localService.getStudentsWithPaging(page = uiState.value.page)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -71,98 +99,83 @@ fun GetAllScreen(
         Button(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             onClick = {
-                localService.initStudentPager(100)
+                localService.clearPaging()
+                localService.getStudentsWithPaging(page = uiState.value.page)
             }
         ) {
             Text("Get All")
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        studentPagerFlow?.let {
-            StudentList(
-                pager = studentPagerFlow,
-                uiState = uiState.value,
-                onExpandToggle = { localService.toggleExpand(it) })
-        }
+        StudentList(
+            lazyListState = lazyColumnListState,
+            uiState = uiState.value,
+            onExpandToggle = { localService.toggleExpand(it) })
     }
 }
 
 @Composable
 fun StudentList(
     modifier: Modifier = Modifier,
-    pager: Flow<PagingData<StudentSimple>>,
+    lazyListState: LazyListState = rememberLazyListState(),
     uiState: GetAllUiState,
     onExpandToggle: (Long) -> Unit
 ) {
-    val lazyPagingItems = pager.collectAsLazyPagingItems()
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(state = lazyListState, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(
-            lazyPagingItems.itemCount,
-            key = lazyPagingItems.itemKey { it.studentID }
+            uiState.students.size,
+            key = { uiState.students[it].studentID },
         ) { index ->
-            val student = lazyPagingItems[index]
-            if (student != null) {
-                StudentItem(
-                    student = student,
-                    isExpanded = student.studentID in uiState.expandedItems,
-                    isLoading = student.studentID in uiState.loadingItems,
-                    subjects = uiState.subjects[student.studentID] ?: emptyList(),
-                    onExpand = { onExpandToggle(it) }
-                )
-            }
+            val student = uiState.students[index]
+            StudentItem(
+                student = student,
+                isExpanded = student.studentID in uiState.expandedItems,
+                isLoading = student.studentID in uiState.loadingItems,
+                subjects = uiState.subjects[student.studentID] ?: emptyList(),
+                onExpand = { onExpandToggle(it) }
+            )
         }
-
-        when (val state = lazyPagingItems.loadState.refresh) { //FIRST LOAD
-            is LoadState.Error -> {
+        when (uiState.paginationState) {
+            PaginationState.REQUEST_INACTIVE -> {
             }
 
-            is LoadState.Loading -> { // Loading UI
+            PaginationState.FIRST_LOADING -> {
                 item {
-                    Column(
+                    Box(
                         modifier = Modifier
-                            .fillParentMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            modifier = Modifier
-                                .padding(8.dp),
-                            text = "Loading"
-                        )
-
-                        CircularProgressIndicator(color = Color.Black)
+                        CircularProgressIndicator()
                     }
                 }
             }
 
-            else -> {}
-        }
-
-        when (val state = lazyPagingItems.loadState.append) { // Pagination
-            is LoadState.Error -> {
-                //TODO Pagination Error Item
-                //state.error to get error message
-            }
-
-            is LoadState.Loading -> { // Pagination Loading UI
+            PaginationState.PAGINATING -> {
                 item {
-                    Column(
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "Pagination Loading")
-
-                        CircularProgressIndicator(color = Color.Black)
+                        CircularProgressIndicator()
                     }
                 }
             }
 
-            else -> {}
+            PaginationState.PAGINATION_EXHAUST -> {
+
+            }
+
+            PaginationState.EMPTY -> {
+            }
         }
     }
+
+
 }
 
 @Composable
